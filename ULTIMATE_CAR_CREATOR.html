@@ -1,0 +1,1449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ultimate 3D Car Creator</title>
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#080d18;color:white;font-family:Arial,sans-serif}
+header{height:62px;background:#111827;display:flex;align-items:center;
+justify-content:space-between;padding:0 20px;border-bottom:1px solid #334155}
+header h2{color:#38bdf8;font-size:19px}
+main{display:flex;height:calc(100vh - 62px)}
+#viewer{flex:1;min-width:0;position:relative;overflow:hidden}
+#viewer canvas{display:block;width:100%;height:100%}
+.panel{width:340px;background:#111827;overflow-y:auto;padding:17px;
+border-left:1px solid #334155;box-shadow:-18px 0 40px #0005}
+h3{font-size:13px;color:#38bdf8;margin:20px 0 12px}
+.control{margin-bottom:14px}
+label{font-size:12px;color:#cbd5e1}
+.control label{display:flex;justify-content:space-between;margin-bottom:7px}
+input,select{width:100%}
+input[type=color]{height:35px;border:0;background:none}
+input[type=range]{accent-color:#38bdf8}
+select{background:#1e293b;color:white;padding:9px;border:1px solid #334155;border-radius:6px}
+.toggle{display:flex;gap:9px;align-items:center;margin:12px 0}
+.toggle input{width:auto;accent-color:#38bdf8}
+button{background:#1e293b;color:white;padding:10px;border:1px solid #334155;
+border-radius:7px;cursor:pointer;font-size:12px;transition:background .18s,border-color .18s}
+button:hover,.active{background:#0284c7;border-color:#38bdf8}
+.buttons{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.primary{background:#0284c7}
+#hud{position:absolute;top:15px;left:15px;background:#101827dd;
+padding:12px;border-radius:8px;font-size:12px;line-height:1.8;pointer-events:none;z-index:3}
+#speed{font-size:20px;color:#38bdf8;font-weight:bold}
+#hint{position:absolute;bottom:15px;left:15px;background:#101827dd;
+padding:10px;border-radius:7px;font-size:11px;color:#cbd5e1;pointer-events:none}
+#startupError{display:none;position:absolute;top:140px;left:15px;right:15px;
+padding:14px;background:#7f1d1d;color:white;border:1px solid #f87171;
+border-radius:8px;font:12px/1.5 Arial;z-index:10;white-space:pre-wrap}
+#speedFX{position:absolute;inset:0;pointer-events:none;z-index:2;overflow:hidden;
+opacity:0;transition:opacity .2s;mix-blend-mode:screen}
+#speedFX i{position:absolute;left:50%;top:50%;width:40vw;height:2px;
+background:linear-gradient(90deg,transparent,#c5e8ff,transparent);
+filter:blur(1px);animation:speedRush .2s linear infinite}
+#speedFX i:nth-child(1){transform:rotate(20deg)}
+#speedFX i:nth-child(2){transform:rotate(50deg)}
+#speedFX i:nth-child(3){transform:rotate(80deg)}
+#speedFX i:nth-child(4){transform:rotate(110deg)}
+#speedFX i:nth-child(5){transform:rotate(140deg)}
+#speedFX i:nth-child(6){transform:rotate(170deg)}
+#speedFX i:nth-child(7){transform:rotate(200deg)}
+#speedFX i:nth-child(8){transform:rotate(230deg)}
+#speedFX i:nth-child(9){transform:rotate(260deg)}
+#speedFX i:nth-child(10){transform:rotate(290deg)}
+#speedFX i:nth-child(11){transform:rotate(320deg)}
+#speedFX i:nth-child(12){transform:rotate(350deg)}
+#speedFX.active{opacity:var(--speed-intensity,0)}
+@keyframes speedRush{from{translate:0 0;opacity:.1}to{translate:8vw 0;opacity:.9}}
+hr{border:0;border-top:1px solid #334155;margin:15px 0}
+@media(max-width:800px){
+main{height:auto;flex-direction:column}
+#viewer{height:55vh;flex:none}
+.panel{width:100%}
+}
+</style>
+</head>
+
+<body>
+<header>
+<h2>🏎️ ULTIMATE CAR CREATOR 3D</h2>
+<span style="font-size:11px;color:#94a3b8">BUILD • CUSTOMIZE • DRIVE</span>
+</header>
+
+<main>
+<div id="viewer">
+<div id="speedFX" aria-hidden="true">
+<i></i><i></i><i></i><i></i><i></i><i></i>
+<i></i><i></i><i></i><i></i><i></i><i></i>
+</div>
+
+<div id="hud">
+MODE: <span id="mode">GARAGE</span><br>
+SPEED: <span id="speed">0</span> KM/H<br>
+GEAR: <span id="gear">P</span><br>
+ENGINE: <span id="engineStatus">OFF</span>
+</div>
+
+<div id="hint">Drag to rotate • Scroll to zoom • WASD to drive</div>
+<div id="startupError"></div>
+</div>
+
+<aside class="panel">
+
+<h3>🚘 CAR MODEL</h3>
+<div class="control">
+<label>Car Type</label>
+<select id="type">
+<option value="sport">Sports Car</option>
+<option value="super">Supercar</option>
+<option value="muscle">Muscle Car</option>
+<option value="suv">SUV</option>
+<option value="sedan">Sedan</option>
+</select>
+</div>
+
+<div class="control">
+<label>Body Color</label>
+<input type="color" id="bodyColor" value="#e11d48">
+</div>
+<div class="control">
+<label>Roof Color</label>
+<input type="color" id="roofColor" value="#111827">
+</div>
+<div class="control">
+<label>Window Tint</label>
+<input type="range" id="tint" min="0" max="95" value="55">
+</div>
+
+<h3>📐 BODY</h3>
+<div class="control">
+<label>Width <span id="widthV">1</span></label>
+<input type="range" id="width" min=".8" max="1.4" step=".05" value="1">
+</div>
+<div class="control">
+<label>Length <span id="lengthV">1</span></label>
+<input type="range" id="length" min=".8" max="1.4" step=".05" value="1">
+</div>
+<div class="control">
+<label>Height <span id="heightV">1</span></label>
+<input type="range" id="height" min=".65" max="1.5" step=".05" value="1">
+</div>
+
+<h3>🛞 WHEELS</h3>
+<div class="control">
+<label>Wheel Size</label>
+<input type="range" id="wheelSize" min=".7" max="1.5" step=".05" value="1">
+</div>
+<div class="control">
+<label>Wheel Color</label>
+<input type="color" id="wheelColor" value="#101010">
+</div>
+<div class="control">
+<label>Rim Color</label>
+<input type="color" id="rimColor" value="#cbd5e1">
+</div>
+<div class="control">
+<label>Rim Style</label>
+<select id="rimStyle">
+<option value="sport">Sport</option>
+<option value="five">Five Spoke</option>
+<option value="solid">Solid</option>
+</select>
+</div>
+
+<h3>✨ BODY KITS</h3>
+<label class="toggle"><input type="checkbox" id="spoiler" checked> Spoiler</label>
+<label class="toggle"><input type="checkbox" id="diffuser" checked> Rear Diffuser</label>
+<label class="toggle"><input type="checkbox" id="sideSkirts" checked> Side Skirts</label>
+<label class="toggle"><input type="checkbox" id="widebody"> Wide Body</label>
+<label class="toggle"><input type="checkbox" id="hood"> Hood Vents</label>
+<label class="toggle"><input type="checkbox" id="roofRack"> Roof Rack</label>
+
+<h3>🚪 INTERIOR</h3>
+<label class="toggle"><input type="checkbox" id="doors"> Open Doors</label>
+<label class="toggle"><input type="checkbox" id="interior" checked> Interior</label>
+<label class="toggle"><input type="checkbox" id="dashboard" checked> Dashboard Screen</label>
+<label class="toggle"><input type="checkbox" id="steering" checked> Steering Wheel</label>
+<label class="toggle"><input type="checkbox" id="sportSeats" checked> Sport Seats</label>
+<div class="control">
+<label>Interior Color</label>
+<input type="color" id="interiorColor" value="#292d39">
+</div>
+
+<h3>💡 LIGHTS</h3>
+<label class="toggle"><input type="checkbox" id="headlights" checked> Headlights</label>
+<label class="toggle"><input type="checkbox" id="tailLights" checked> Tail Lights</label>
+<label class="toggle"><input type="checkbox" id="indicators"> Indicators</label>
+<label class="toggle"><input type="checkbox" id="neon"> Neon Underglow</label>
+<div class="control">
+<label>Neon Color</label>
+<input type="color" id="neonColor" value="#00ccff">
+</div>
+
+<h3>🔊 ENGINE</h3>
+<div class="control">
+<label>Engine Power</label>
+<input type="range" id="power" min="50" max="300" value="160">
+</div>
+<div class="control">
+<label>Exhaust</label>
+<select id="exhaust">
+<option value="single">Single</option>
+<option value="dual">Dual</option>
+<option value="quad">Quad</option>
+</select>
+</div>
+<label class="toggle"><input type="checkbox" id="engine" checked> Engine Sound</label>
+<p style="font-size:10px;color:#94a3b8;line-height:1.5">
+Start the engine for the V10 idle. Hold R to rev while parked. Use W to accelerate.
+</p>
+
+<h3>🌎 ENVIRONMENT</h3>
+<select id="environment">
+<option value="garage">Garage</option>
+<option value="day">Daylight</option>
+<option value="night">Night</option>
+<option value="sunset">Sunset</option>
+</select>
+
+<h3>🎮 CONTROLS</h3>
+<div class="buttons">
+<button class="primary" id="drive">🚗 Drive</button>
+<button id="garage">🏠 Garage</button>
+<button id="cockpit">👀 Cockpit</button>
+<button id="orbit">⟳ Auto Rotate</button>
+<button id="openDoors">🚪 Doors</button>
+<button id="startEngine">🔑 Engine</button>
+</div>
+
+<h3>🛠️ ACTIONS</h3>
+<div class="buttons">
+<button class="primary" id="random">🎲 Random Car</button>
+<button id="reset">↻ Reset</button>
+<button id="photo">📸 Screenshot</button>
+<button id="lightsBtn">💡 Lights</button>
+</div>
+
+<hr>
+<p style="font-size:11px;color:#94a3b8;line-height:1.8">
+W / ↑ Accelerate<br>
+S / ↓ Brake and reverse<br>
+A / ← Turn left<br>
+D / → Turn right<br>
+R: Rev engine<br>
+Space: Handbrake<br>
+C: Change camera
+</p>
+</aside>
+</main>
+
+<!-- IMPORTANT: This import map is valid JSON. Keep it before the module script. -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+
+const $ = id => document.getElementById(id);
+const viewer = $('viewer');
+
+let scene, camera, renderer, orbit, clock;
+let car, bodyGroup, floorMat;
+let wheels = [], doors = [], steeringWheel = null;
+let frontLights = [], tailLights = [];
+let speed = 0, steer = 0;
+let driving = false, cockpit = false;
+let engineOn = false, autoRotate = false;
+let handbrake = false, doorOpen = false;
+let keys = {};
+let soundContext = null, engineAudio = null;
+let engineRpm = 850;
+let visualSpeed = 0;
+const baseCameraFov = 48;
+
+function showError(error) {
+  console.error(error);
+  const panel = $('startupError');
+  panel.style.display = 'block';
+  panel.textContent = '3D STARTUP ERROR:\n' +
+    (error?.stack || error?.message || String(error));
+}
+
+function material(color, metal=.2, rough=.4) {
+  return new THREE.MeshStandardMaterial({
+    color, metalness:metal, roughness:rough
+  });
+}
+
+function box(parent, name, size, pos, mat) {
+  const mesh = new THREE.Mesh(
+    new THREE.BoxGeometry(...size), mat
+  );
+  mesh.name = name;
+  mesh.position.set(...pos);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  parent.add(mesh);
+  return mesh;
+}
+
+function rounded(parent,name,size,pos,mat,radius=.08) {
+  const mesh = new THREE.Mesh(
+    new RoundedBoxGeometry(size[0],size[1],size[2],5,radius),
+    mat
+  );
+  mesh.name=name;
+  mesh.position.set(...pos);
+  mesh.castShadow=true;
+  mesh.receiveShadow=true;
+  parent.add(mesh);
+  return mesh;
+}
+
+function cylinder(parent,r,h,pos,mat) {
+  const mesh = new THREE.Mesh(
+    new THREE.CylinderGeometry(r,r,h,40),mat
+  );
+  mesh.position.set(...pos);
+  mesh.castShadow=true;
+  mesh.receiveShadow=true;
+  parent.add(mesh);
+  return mesh;
+}
+
+function createWheel(x,z,r,tireMat,rimMat,style) {
+  const g = new THREE.Group();
+  g.position.set(x,r,z);
+  bodyGroup.add(g);
+
+  const tire = cylinder(g,r,.3,[0,0,0],tireMat);
+  tire.rotation.z=Math.PI/2;
+
+  const rim = cylinder(g,r*.67,.32,[0,0,0],rimMat);
+  rim.rotation.z=Math.PI/2;
+
+  const hub = cylinder(g,r*.17,.34,[0,0,0],
+    material(0xcbd5e1,.9,.15));
+  hub.rotation.z=Math.PI/2;
+
+  const count=style==='solid'?0:style==='five'?5:10;
+
+  for(let i=0;i<count;i++){
+    const a=i*Math.PI*2/count;
+    const spoke=box(g,'spoke',[.045,r*.95,.045],
+      [0,Math.sin(a)*r*.3,Math.cos(a)*r*.3],rimMat);
+    spoke.rotation.x=-a;
+  }
+
+  wheels.push(g);
+  return g;
+}
+
+function createDoor(side,w,l,bodyMat,glassMat,insideMat) {
+  const hinge=new THREE.Group();
+  hinge.position.set(side*w*.49,.8,l*.13);
+  bodyGroup.add(hinge);
+
+  box(hinge,'door',[.09,.65,l*.29],
+    [side*.03,-.04,-l*.13],bodyMat);
+
+  box(hinge,'door glass',[.045,.35,l*.23],
+    [side*.03,.43,-l*.13],glassMat);
+
+  box(hinge,'door trim',[.1,.045,l*.24],
+    [side*.04,-.31,-l*.13],insideMat);
+
+  box(hinge,'door handle',[.035,.045,.17],
+    [side*.085,.04,-l*.12],material(0xcbd5e1,.9,.2));
+
+  doors.push({hinge,side});
+}
+
+function setDoors(open) {
+  doorOpen=open;
+  $('doors').checked=open;
+  doors.forEach(d=>{
+    d.hinge.rotation.y=open?d.side*.85:0;
+  });
+}
+
+function buildCar() {
+  bodyGroup.clear();
+  wheels=[];
+  doors=[];
+  frontLights=[];
+  tailLights=[];
+  steeringWheel=null;
+
+  car.position.set(0,0,0);
+  car.rotation.set(0,0,0);
+
+  const type=$('type').value;
+  let [w,h,l,ch]=({
+    sport:[2,.85,4.4,.9],
+    super:[2.05,.72,4.6,.75],
+    muscle:[2.2,1.05,4.7,1],
+    suv:[2.25,1.35,4.7,1.3],
+    sedan:[2,1,4.8,1]
+  })[type];
+
+  w*=+$('width').value;
+  l*=+$('length').value;
+  h*=+$('height').value;
+
+  const body=new THREE.MeshPhysicalMaterial({
+    color:$('bodyColor').value,
+    metalness:.78,roughness:.19,
+    clearcoat:1,clearcoatRoughness:.08
+  });
+
+  const roofMat=new THREE.MeshPhysicalMaterial({
+    color:$('roofColor').value,
+    metalness:.62,roughness:.2,
+    clearcoat:1
+  });
+
+  const black=material(0x080c13,.2,.4);
+  const chrome=material(0xc5d0dc,.9,.2);
+  const inside=material($('interiorColor').value,.1,.65);
+  const tireMat=material($('wheelColor').value,.05,.85);
+  const rimMat=material($('rimColor').value,.9,.2);
+
+  const glass=new THREE.MeshPhysicalMaterial({
+    color:0x183247,
+    roughness:.075,
+    metalness:.42,
+    clearcoat:1,
+    transparent:true,
+    opacity:.3+(+$('tint').value/100)*.65,
+    side:THREE.DoubleSide
+  });
+
+  const centerY=.7;
+  const bottom=.55;
+  const wheelR=.43*+$('wheelSize').value;
+
+  // Main body
+  rounded(bodyGroup,'main chassis',
+    [w,h,l],[0,centerY,0],body,.16);
+
+  box(bodyGroup,'hood',[w*.97,h*.24,l*.27],
+    [0,centerY+h*.27,l*.34],body);
+
+  box(bodyGroup,'trunk',[w*.96,h*.22,l*.18],
+    [0,centerY+h*.23,-l*.42],body);
+
+  box(bodyGroup,'front bumper',[w*1.04,.2,.22],
+    [0,bottom,l*.51],black);
+
+  box(bodyGroup,'rear bumper',[w*1.04,.2,.22],
+    [0,bottom,-l*.51],black);
+
+  // Cabin
+  const cabin=new THREE.Group();
+  bodyGroup.add(cabin);
+
+  const cabinHeight=ch*.9;
+  rounded(cabin,'roof',[w*.65,.10,l*.39],
+    [0,centerY+h*.15+ch*.85,0],roofMat,.045);
+
+  // Windshields
+  const frontGlass=box(cabin,'front windshield',
+    [w*.67,ch*.55,.045],
+    [0,centerY+h*.15+ch*.52,l*.205],glass);
+  frontGlass.rotation.x=-.15;
+
+  const rearGlass=box(cabin,'rear windshield',
+    [w*.67,ch*.5,.045],
+    [0,centerY+h*.15+ch*.48,-l*.21],glass);
+  rearGlass.rotation.x=.15;
+
+  for(const side of [-1,1]){
+    box(cabin,'side window',[.035,ch*.56,l*.31],
+      [side*w*.365,centerY+h*.15+ch*.5,0],glass);
+  }
+
+  if($('roofRack').checked){
+    for(const side of [-1,1]){
+      box(bodyGroup,'roof rack',[.07,.07,l*.35],
+        [side*w*.27,centerY+h*.15+ch*.96,0],chrome);
+    }
+  }
+
+  // Interior
+  if($('interior').checked){
+    box(bodyGroup,'interior floor',[w*.72,.09,l*.43],
+      [0,.83,0],inside);
+
+    box(bodyGroup,'dashboard',[w*.75,.23,.28],
+      [0,centerY+h*.13,l*.2],inside);
+
+    if($('dashboard').checked){
+      box(bodyGroup,'display',[.52,.22,.025],
+        [0,centerY+h*.29,l*.34],
+        new THREE.MeshStandardMaterial({
+          color:0x071f31,
+          emissive:0x087bb5,
+          emissiveIntensity:1
+        }));
+    }
+
+    if($('steering').checked){
+      steeringWheel=new THREE.Group();
+      steeringWheel.position.set(-w*.2,centerY+h*.19,l*.12);
+      bodyGroup.add(steeringWheel);
+
+      const ring=new THREE.Mesh(
+        new THREE.TorusGeometry(.19,.035,12,32),black
+      );
+      steeringWheel.add(ring);
+
+      box(steeringWheel,'spoke',[.045,.33,.04],
+        [0,0,0],chrome);
+    }
+
+    for(const side of [-1,1]){
+      for(const z of [-.25,.12]){
+        const seat=new THREE.Group();
+        seat.position.set(side*w*.2,.95,z);
+        bodyGroup.add(seat);
+
+        box(seat,'seat cushion',[.53,.16,.5],
+          [0,0,0],inside);
+
+        box(seat,'seat back',[.52,.65,.14],
+          [0,.34,-.17],inside);
+
+        if($('sportSeats').checked){
+          box(seat,'bolster',[.12,.52,.17],
+            [-.2,.33,-.14],body);
+          box(seat,'bolster',[.12,.52,.17],
+            [.2,.33,-.14],body);
+        }
+      }
+    }
+  }
+
+  // Doors
+  for(const side of [-1,1]){
+    createDoor(side,w,l,body,glass,inside);
+  }
+
+  // Mirrors and exterior trim
+  for(const side of [-1,1]){
+    rounded(bodyGroup,'side mirror',[.19,.12,.22],
+      [side*w*.48,centerY+h*.32,l*.13],black,.045);
+
+    box(bodyGroup,'lower door accent',[.025,.035,l*.34],
+      [side*w*.502,.57,0],chrome);
+  }
+
+  rounded(bodyGroup,'front splitter',
+    [w*1.08,.055,.38],[0,.49,l*.54],black,.035);
+
+  for(let i=0;i<5;i++){
+    box(bodyGroup,'grille slat',[w*.31,.018,.025],
+      [0,.66,l*.526-i*.035],chrome);
+  }
+
+  // Wheels
+  for(const side of [-1,1]){
+    createWheel(side*w*.51,l*.33,wheelR,tireMat,rimMat,$('rimStyle').value);
+    createWheel(side*w*.51,-l*.34,wheelR,tireMat,rimMat,$('rimStyle').value);
+  }
+
+  // Widebody
+  if($('widebody').checked){
+    for(const side of [-1,1]){
+      for(const z of [l*.33,-l*.34]){
+        const flare=new THREE.Mesh(
+          new THREE.TorusGeometry(wheelR*.98,.09,8,32,Math.PI),
+          body
+        );
+        flare.rotation.y=Math.PI/2;
+        flare.position.set(side*w*.51,wheelR,z);
+        bodyGroup.add(flare);
+      }
+    }
+  }
+
+  // Side skirts
+  if($('sideSkirts').checked){
+    for(const side of [-1,1]){
+      box(bodyGroup,'side skirt',[.13,.12,l*.5],
+        [side*w*.51,bottom-.08,0],black);
+    }
+  }
+
+  // Spoiler
+  if($('spoiler').checked){
+    box(bodyGroup,'spoiler',[w*1.02,.09,.34],
+      [0,centerY+h*.65,-l*.49],black);
+
+    for(const side of [-1,1]){
+      box(bodyGroup,'spoiler stand',[.08,.34,.09],
+        [side*w*.3,centerY+h*.46,-l*.47],chrome);
+    }
+  }
+
+  if($('diffuser').checked){
+    box(bodyGroup,'diffuser',[w*.8,.13,.35],
+      [0,bottom,-l*.47],black);
+  }
+
+  if($('hood').checked){
+    for(const side of [-1,1]){
+      box(bodyGroup,'hood vent',[.25,.025,.42],
+        [side*w*.25,centerY+h*.4,l*.31],black);
+    }
+  }
+
+  // Exhaust
+  const exhaustCount=$('exhaust').value==='single'?1:
+    $('exhaust').value==='dual'?2:4;
+
+  for(let i=0;i<exhaustCount;i++){
+    const x=(i-(exhaustCount-1)/2)*.3;
+    const pipe=cylinder(bodyGroup,.075,.24,
+      [x,bottom-.03,-l*.54],chrome);
+    pipe.rotation.x=Math.PI/2;
+  }
+
+  box(bodyGroup,'grille',[w*.4,.18,.035],
+    [0,centerY-.03,l*.51],black);
+
+  // Headlights
+  if($('headlights').checked){
+    for(const side of [-1,1]){
+      const lm=new THREE.MeshStandardMaterial({
+        color:0xffffff,
+        emissive:0xffffff,
+        emissiveIntensity:2.5
+      });
+
+      const light=box(bodyGroup,'headlight',[.45,.13,.06],
+        [side*w*.34,centerY+h*.25,l*.515],lm);
+
+      frontLights.push(light);
+
+      const beam=new THREE.SpotLight(0xffffff,3,25,Math.PI/6,.6);
+      beam.position.set(side*w*.34,centerY+h*.25,l*.55);
+      beam.target.position.set(side*w*.34,0,15);
+      bodyGroup.add(beam);
+      bodyGroup.add(beam.target);
+    }
+  }
+
+  // Tail lights
+  if($('tailLights').checked){
+    for(const side of [-1,1]){
+      const lm=new THREE.MeshStandardMaterial({
+        color:0x990000,
+        emissive:0xff0000,
+        emissiveIntensity:1
+      });
+
+      tailLights.push(box(bodyGroup,'tail light',[.48,.14,.05],
+        [side*w*.34,centerY+h*.2,-l*.515],lm));
+    }
+  }
+
+  // Neon
+  if($('neon').checked){
+    box(bodyGroup,'neon',[w*.8,.035,l*.7],
+      [0,.3,0],
+      new THREE.MeshBasicMaterial({
+        color:$('neonColor').value
+      }));
+
+    const glow=new THREE.PointLight($('neonColor').value,22,5);
+    glow.position.set(0,.3,0);
+    bodyGroup.add(glow);
+  }
+
+  setDoors(false);
+}
+
+// Environment
+function updateEnvironment(name){
+  const data={
+    garage:[0x101827,0x202938],
+    day:[0x82b8e8,0x777e88],
+    night:[0x070b20,0x151b2d],
+    sunset:[0xc47c53,0x42302c]
+  }[name];
+
+  scene.background.setHex(data[0]);
+  floorMat.color.setHex(data[1]);
+}
+
+$('environment').addEventListener('change',e=>{
+  updateEnvironment(e.target.value);
+});
+
+// Rebuild car on customization
+document.querySelectorAll('.panel input,.panel select').forEach(el=>{
+  el.addEventListener('input',()=>{
+    if(['power','engine'].includes(el.id))return;
+
+    ['width','length','height'].forEach(id=>{
+      $(id+'V').textContent=$(id).value;
+    });
+
+    if(el.id==='doors'){
+      setDoors(el.checked);
+      return;
+    }
+
+    if(el.id==='environment'){
+      updateEnvironment(el.value);
+      return;
+    }
+
+    buildCar();
+  });
+});
+
+// Modes
+function setMode(value){
+  driving=value;
+  $('mode').textContent=value?'DRIVING':'GARAGE';
+  orbit.enabled=!value;
+
+  if(!value){
+    speed=0;
+    cockpit=false;
+    camera.fov=baseCameraFov;
+    camera.updateProjectionMatrix();
+  }
+}
+
+$('drive').onclick=()=>setMode(true);
+$('garage').onclick=()=>setMode(false);
+
+$('openDoors').onclick=()=>setDoors(!doorOpen);
+
+$('doors').addEventListener('change',()=>{
+  setDoors($('doors').checked);
+});
+
+$('orbit').onclick=()=>{
+  autoRotate=!autoRotate;
+  orbit.autoRotate=autoRotate;
+};
+
+$('cockpit').onclick=()=>{
+  cockpit=!cockpit;
+  if(cockpit)setMode(true);
+};
+
+$('lightsBtn').onclick=()=>{
+  $('headlights').checked=!$('headlights').checked;
+  buildCar();
+};
+
+// V10 AUDIO SYSTEM
+function createEngineAudio(){
+  const AudioCtx=window.AudioContext||window.webkitAudioContext;
+  if(!AudioCtx)throw new Error('Web Audio is not supported.');
+
+  soundContext=new AudioCtx();
+
+  const master=soundContext.createGain();
+  master.gain.value=.0001;
+  master.connect(soundContext.destination);
+
+  // V10 firing character
+  const real=new Float32Array(48);
+  const imag=new Float32Array(48);
+
+  for(let n=1;n<48;n++){
+    imag[n]=(2/(Math.PI*n))*(.82+.18*Math.cos(n*.31));
+  }
+
+  const wave=soundContext.createPeriodicWave(real,imag);
+
+  const firing=soundContext.createOscillator();
+  firing.setPeriodicWave(wave);
+
+  const firingFilter=soundContext.createBiquadFilter();
+  firingFilter.type='lowpass';
+  firingFilter.frequency.value=1800;
+
+  const firingGain=soundContext.createGain();
+  firingGain.gain.value=.0001;
+
+  firing.connect(firingFilter);
+  firingFilter.connect(firingGain);
+  firingGain.connect(master);
+
+  // Deep engine tone
+  const sub=soundContext.createOscillator();
+  sub.type='sine';
+
+  const subFilter=soundContext.createBiquadFilter();
+  subFilter.type='lowpass';
+  subFilter.frequency.value=180;
+
+  const subGain=soundContext.createGain();
+  subGain.gain.value=.0001;
+
+  sub.connect(subFilter);
+  subFilter.connect(subGain);
+  subGain.connect(master);
+
+  // Exhaust and intake noise
+  const buffer=soundContext.createBuffer(
+    1,soundContext.sampleRate*2,soundContext.sampleRate
+  );
+
+  const samples=buffer.getChannelData(0);
+  for(let i=0;i<samples.length;i++){
+    samples[i]=Math.random()*2-1;
+  }
+
+  const noise=soundContext.createBufferSource();
+  noise.buffer=buffer;
+  noise.loop=true;
+
+  const exhaustFilter=soundContext.createBiquadFilter();
+  exhaustFilter.type='bandpass';
+  exhaustFilter.frequency.value=145;
+  exhaustFilter.Q.value=.8;
+
+  const exhaustGain=soundContext.createGain();
+  exhaustGain.gain.value=.0001;
+
+  noise.connect(exhaustFilter);
+  exhaustFilter.connect(exhaustGain);
+  exhaustGain.connect(master);
+
+  const intakeFilter=soundContext.createBiquadFilter();
+  intakeFilter.type='highpass';
+  intakeFilter.frequency.value=650;
+
+  const intakeGain=soundContext.createGain();
+  intakeGain.gain.value=.0001;
+
+  noise.connect(intakeFilter);
+  intakeFilter.connect(intakeGain);
+  intakeGain.connect(master);
+
+  // High frequency exhaust bark
+  const bark=soundContext.createOscillator();
+  bark.type='sawtooth';
+
+  const barkFilter=soundContext.createBiquadFilter();
+  barkFilter.type='bandpass';
+  barkFilter.frequency.value=950;
+  barkFilter.Q.value=1.2;
+
+  const barkGain=soundContext.createGain();
+  barkGain.gain.value=.0001;
+
+  bark.connect(barkFilter);
+  barkFilter.connect(barkGain);
+  barkGain.connect(master);
+
+  [firing,sub,bark].forEach(o=>o.start());
+  noise.start();
+
+  engineAudio={
+    master,firing,firingFilter,firingGain,
+    sub,subGain,noise,
+    exhaustFilter,exhaustGain,
+    intakeFilter,intakeGain,
+    bark,barkFilter,barkGain
+  };
+
+  soundContext.resume();
+}
+
+function updateEngineAudio(dt){
+  if(!engineAudio||!soundContext)return;
+
+  const accelerating=!!(keys.w||keys.arrowup);
+  const revving=!!keys.r;
+  const moving=driving?Math.abs(speed):0;
+
+  let targetRpm=engineOn
+    ?900+moving*92+(accelerating?1250:0)+(revving?5000:0)
+    :0;
+
+  targetRpm=THREE.MathUtils.clamp(targetRpm,0,8500);
+
+  engineRpm=THREE.MathUtils.damp(
+    engineRpm,targetRpm,revving?2.7:accelerating?2:1.35,dt
+  );
+
+  const rpm=Math.max(0,engineRpm);
+  const firingHz=Math.max(1,rpm/12);
+  const load=engineOn?
+    (accelerating||revving?1:Math.max(.18,moving/45)):0;
+
+  const now=soundContext.currentTime;
+
+  engineAudio.firing.frequency.setTargetAtTime(
+    firingHz,now,.035
+  );
+
+  engineAudio.sub.frequency.setTargetAtTime(
+    Math.max(18,rpm/30),now,.05
+  );
+
+  engineAudio.bark.frequency.setTargetAtTime(
+    Math.max(70,firingHz*3.05),now,.045
+  );
+
+  engineAudio.firingGain.gain.setTargetAtTime(
+    engineOn?.105+load*.13:.0001,now,.07
+  );
+
+  engineAudio.subGain.gain.setTargetAtTime(
+    engineOn?.07+load*.045:.0001,now,.08
+  );
+
+  engineAudio.exhaustGain.gain.setTargetAtTime(
+    engineOn?.018+load*.075:.0001,now,.09
+  );
+
+  engineAudio.intakeGain.gain.setTargetAtTime(
+    engineOn?.003+load*.045:.0001,now,.08
+  );
+
+  engineAudio.barkGain.gain.setTargetAtTime(
+    engineOn?.008+load*.035:.0001,now,.08
+  );
+
+  engineAudio.firingFilter.frequency.setTargetAtTime(
+    650+rpm*.48,now,.08
+  );
+
+  engineAudio.exhaustFilter.frequency.setTargetAtTime(
+    105+rpm*.045,now,.1
+  );
+
+  engineAudio.intakeFilter.frequency.setTargetAtTime(
+    650+rpm*.16,now,.1
+  );
+
+  engineAudio.barkFilter.frequency.setTargetAtTime(
+    500+rpm*.12,now,.08
+  );
+
+  engineAudio.master.gain.setTargetAtTime(
+    engineOn?.62:.0001,now,.08
+  );
+}
+
+function stopEngineAudio(){
+  if(!engineAudio)return;
+
+  const old=engineAudio;
+  engineAudio=null;
+
+  try{
+    old.master.gain.setTargetAtTime(
+      .0001,soundContext.currentTime,.04
+    );
+
+    setTimeout(()=>{
+      try{
+        old.firing.stop();
+        old.sub.stop();
+        old.bark.stop();
+        old.noise.stop();
+      }catch(e){}
+    },300);
+  }catch(e){}
+}
+
+async function startEngine(){
+  engineOn=!engineOn;
+
+  $('engineStatus').textContent=engineOn?'ON':'OFF';
+  $('startEngine').textContent=engineOn?
+    '⏻ Stop Engine':'🔑 Start Engine';
+
+  if(engineOn&&$('engine').checked){
+    try{
+      if(!soundContext||soundContext.state==='closed'){
+        createEngineAudio();
+      }else if(soundContext.state==='suspended'){
+        await soundContext.resume();
+      }
+      engineRpm=850;
+    }catch(e){
+      showError(e);
+    }
+  }else{
+    stopEngineAudio();
+  }
+}
+
+$('startEngine').onclick=startEngine;
+
+$('engine').addEventListener('change',async()=>{
+  if(!engineOn)return;
+
+  if($('engine').checked){
+    try{
+      if(!soundContext||soundContext.state==='closed'){
+        createEngineAudio();
+      }else{
+        await soundContext.resume();
+      }
+    }catch(e){
+      showError(e);
+    }
+  }else{
+    stopEngineAudio();
+  }
+});
+
+// Random car
+$('random').onclick=()=>{
+  const rand=()=> '#'+Math.floor(
+    Math.random()*16777215
+  ).toString(16).padStart(6,'0');
+
+  [
+    'bodyColor','roofColor','wheelColor',
+    'rimColor','interiorColor','neonColor'
+  ].forEach(id=>$(id).value=rand());
+
+  $('type').selectedIndex=Math.floor(Math.random()*5);
+
+  [
+    'spoiler','diffuser','sideSkirts',
+    'widebody','hood','roofRack','neon'
+  ].forEach(id=>$(id).checked=Math.random()>.5);
+
+  buildCar();
+};
+
+// Reset
+$('reset').onclick=()=>{
+  const defaults={
+    type:'sport',
+    bodyColor:'#e11d48',
+    roofColor:'#111827',
+    wheelColor:'#101010',
+    rimColor:'#cbd5e1',
+    interiorColor:'#292d39',
+    neonColor:'#00ccff',
+    width:1,length:1,height:1,
+    wheelSize:1,tint:55,
+    exhaust:'dual',
+    rimStyle:'sport',
+    environment:'garage'
+  };
+
+  Object.entries(defaults).forEach(([id,v])=>{
+    $(id).value=v;
+  });
+
+  [
+    'spoiler','diffuser','sideSkirts','interior',
+    'dashboard','steering','sportSeats',
+    'headlights','tailLights','engine'
+  ].forEach(id=>$(id).checked=true);
+
+  [
+    'widebody','hood','roofRack','doors',
+    'neon','indicators'
+  ].forEach(id=>$(id).checked=false);
+
+  ['width','length','height'].forEach(id=>{
+    $(id+'V').textContent=$(id).value;
+  });
+
+  updateEnvironment('garage');
+  buildCar();
+  setMode(false);
+  camera.position.set(7,5,9);
+  orbit.target.set(0,1,0);
+  orbit.update();
+};
+
+// Screenshot
+$('photo').onclick=()=>{
+  renderer.render(scene,camera);
+
+  const a=document.createElement('a');
+  a.download='my-custom-car.png';
+  a.href=renderer.domElement.toDataURL('image/png');
+  a.click();
+};
+
+// Keyboard
+window.addEventListener('keydown',e=>{
+  const key=e.key.toLowerCase();
+
+  keys[key]=true;
+
+  if([
+    'arrowup','arrowdown','arrowleft',
+    'arrowright',' '
+  ].includes(key)){
+    e.preventDefault();
+  }
+
+  if(key==='c'&&!e.repeat){
+    cockpit=!cockpit;
+    if(cockpit)setMode(true);
+  }
+
+  if(key===' '){
+    handbrake=true;
+  }
+});
+
+window.addEventListener('keyup',e=>{
+  const key=e.key.toLowerCase();
+  keys[key]=false;
+
+  if(key===' '){
+    handbrake=false;
+  }
+});
+
+window.addEventListener('blur',()=>{
+  keys={};
+  handbrake=false;
+});
+
+// Animation
+function animate(){
+  requestAnimationFrame(animate);
+
+  const dt=Math.min(clock.getDelta(),.04);
+
+  if(driving){
+    const power=+$('power').value/300;
+
+    const acceleration=keys.w||keys.arrowup;
+    const brake=keys.s||keys.arrowdown;
+    const left=keys.a||keys.arrowleft;
+    const right=keys.d||keys.arrowright;
+
+    if(engineOn&&acceleration){
+      speed+=power*18*dt;
+    }else if(brake){
+      speed-=speed>0?28*dt:10*dt;
+    }else{
+      speed*=Math.pow(.985,dt*60);
+    }
+
+    if(handbrake){
+      speed*=Math.pow(.9,dt*60);
+    }
+
+    speed=THREE.MathUtils.clamp(
+      speed,-12,45*power+15
+    );
+
+    steer=THREE.MathUtils.lerp(
+      steer,(left?1:0)-(right?1:0),dt*5
+    );
+
+    car.rotation.y+=steer*speed*.012*dt;
+
+    const direction=new THREE.Vector3(
+      Math.sin(car.rotation.y),0,Math.cos(car.rotation.y)
+    );
+
+    car.position.addScaledVector(
+      direction,speed*dt*.23
+    );
+
+    wheels.forEach((w,i)=>{
+      w.rotation.x+=speed*dt*.72;
+      if(i<2)w.rotation.y=steer*.12;
+    });
+
+    bodyGroup.position.y=THREE.MathUtils.damp(
+      bodyGroup.position.y,
+      Math.abs(speed)>.5?-.018:0,5,dt
+    );
+
+    if(steeringWheel){
+      steeringWheel.rotation.z=-steer*.55;
+    }
+
+    // Chase camera
+    if(!cockpit){
+      const target=new THREE.Vector3(
+        car.position.x,
+        car.position.y+1.5,
+        car.position.z
+      );
+
+      const ratio=THREE.MathUtils.clamp(
+        Math.abs(speed)/48,0,1
+      );
+
+      const distance=7+ratio*3.2;
+
+      const behind=new THREE.Vector3(
+        -Math.sin(car.rotation.y)*distance,
+        4+ratio*.55,
+        -Math.cos(car.rotation.y)*distance
+      );
+
+      camera.position.lerp(
+        target.clone().add(behind),
+        dt*(2.4+ratio*.8)
+      );
+
+      camera.lookAt(target);
+
+      camera.position.y+=
+        Math.sin(performance.now()*.035)*ratio*.018;
+    }else{
+      const eye=new THREE.Vector3(0,1.65,1.1);
+      eye.applyAxisAngle(
+        new THREE.Vector3(0,1,0),car.rotation.y
+      );
+
+      camera.position.lerp(
+        car.position.clone().add(eye),dt*6
+      );
+
+      const look=new THREE.Vector3(0,1.4,10);
+      look.applyAxisAngle(
+        new THREE.Vector3(0,1,0),car.rotation.y
+      );
+
+      camera.lookAt(car.position.clone().add(look));
+    }
+  }else{
+    orbit.update();
+  }
+
+  updateEngineAudio(dt);
+
+  // Cinematic speed effects
+  visualSpeed=THREE.MathUtils.damp(
+    visualSpeed,Math.abs(speed),3.2,dt
+  );
+
+  const ratio=THREE.MathUtils.clamp(
+    visualSpeed/48,0,1
+  );
+
+  camera.fov=baseCameraFov+ratio*17;
+  camera.updateProjectionMatrix();
+
+  const fx=$('speedFX');
+  fx.classList.toggle(
+    'active',driving&&ratio>.24
+  );
+
+  fx.style.setProperty(
+    '--speed-intensity',
+    String(Math.max(0,(ratio-.18)*1.18))
+  );
+
+  if(driving&&cockpit){
+    const shake=ratio*(keys.w||keys.arrowup?1:.35);
+    camera.position.x+=
+      Math.sin(performance.now()*.047)*shake*.012;
+    camera.position.y+=
+      Math.cos(performance.now()*.061)*shake*.009;
+  }
+
+  $('speed').textContent=Math.round(Math.abs(speed)*2.5);
+  $('gear').textContent=
+    speed>1?'D':speed< -1?'R':'P';
+
+  renderer.render(scene,camera);
+}
+
+// Initialize Three.js
+function initialize(){
+  try{
+    scene=new THREE.Scene();
+    scene.background=new THREE.Color(0x101827);
+
+    camera=new THREE.PerspectiveCamera(48,1,.1,500);
+    camera.position.set(7,5,9);
+
+    renderer=new THREE.WebGLRenderer({
+      antialias:true,
+      preserveDrawingBuffer:true,
+      powerPreference:'high-performance'
+    });
+
+    renderer.setPixelRatio(
+      Math.min(window.devicePixelRatio||1,2)
+    );
+
+    renderer.shadowMap.enabled=true;
+    renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+    renderer.outputColorSpace=THREE.SRGBColorSpace;
+    renderer.toneMapping=THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure=1.25;
+
+    viewer.appendChild(renderer.domElement);
+
+    orbit=new OrbitControls(camera,renderer.domElement);
+    orbit.target.set(0,1,0);
+    orbit.enableDamping=true;
+    orbit.maxPolarAngle=Math.PI*.49;
+
+    // Lighting
+    scene.add(new THREE.HemisphereLight(
+      0xddeeff,0x30394d,1.65
+    ));
+
+    scene.add(new THREE.AmbientLight(
+      0xffffff,.28
+    ));
+
+    const rimLight=new THREE.DirectionalLight(
+      0x9bc9ff,2
+    );
+    rimLight.position.set(-8,5,-7);
+    scene.add(rimLight);
+
+    const sun=new THREE.DirectionalLight(
+      0xffffff,3
+    );
+    sun.position.set(7,12,8);
+    sun.castShadow=true;
+    sun.shadow.mapSize.set(2048,2048);
+    scene.add(sun);
+
+    const fill=new THREE.PointLight(
+      0x39aaff,35,35
+    );
+    fill.position.set(-5,5,-5);
+    scene.add(fill);
+
+    // Floor
+    floorMat=material(0x202938,.15,.7);
+
+    const floor=new THREE.Mesh(
+      new THREE.PlaneGeometry(300,300),
+      floorMat
+    );
+
+    floor.rotation.x=-Math.PI/2;
+    floor.receiveShadow=true;
+    scene.add(floor);
+
+    const grid=new THREE.GridHelper(
+      200,100,0x34465e,0x263449
+    );
+    grid.position.y=.015;
+    scene.add(grid);
+
+    const floorGlow=new THREE.PointLight(
+      0x4aa9ff,7,18
+    );
+    floorGlow.position.set(0,1.2,0);
+    scene.add(floorGlow);
+
+    const overhead=new THREE.DirectionalLight(
+      0xffffff,1.15
+    );
+    overhead.position.set(0,10,1);
+    overhead.castShadow=true;
+    scene.add(overhead);
+
+    // Road
+    const road=new THREE.Group();
+    scene.add(road);
+
+    const roadMesh=new THREE.Mesh(
+      new THREE.PlaneGeometry(16,300),
+      material(0x252b34,.05,.9)
+    );
+
+    roadMesh.rotation.x=-Math.PI/2;
+    roadMesh.position.set(0,.025,-90);
+    road.add(roadMesh);
+
+    for(let z=50;z>-240;z-=9){
+      const line=new THREE.Mesh(
+        new THREE.PlaneGeometry(.18,4),
+        new THREE.MeshBasicMaterial({color:0xffffff})
+      );
+
+      line.rotation.x=-Math.PI/2;
+      line.position.set(0,.04,z);
+      road.add(line);
+    }
+
+    // Car groups
+    car=new THREE.Group();
+    scene.add(car);
+
+    bodyGroup=new THREE.Group();
+    car.add(bodyGroup);
+
+    clock=new THREE.Clock();
+
+    buildCar();
+    updateEnvironment('garage');
+    resize();
+
+    window.addEventListener('resize',resize);
+
+    // ResizeObserver with a safe resize callback
+    if(window.ResizeObserver){
+      const observer=new ResizeObserver(()=>{
+        requestAnimationFrame(resize);
+      });
+      observer.observe(viewer);
+    }
+
+    orbit.update();
+    animate();
+
+    console.log('Ultimate 3D Car Creator started successfully.');
+
+  }catch(error){
+    showError(error);
+  }
+}
+
+function resize(){
+  if(!renderer||!camera)return;
+
+  const w=viewer.clientWidth;
+  const h=viewer.clientHeight;
+
+  if(!w||!h)return;
+
+  camera.aspect=w/h;
+  camera.updateProjectionMatrix();
+
+  renderer.setSize(w,h,false);
+}
+
+initialize();
+
+window.addEventListener('error',event=>{
+  if(event.message?.includes('ResizeObserver loop'))return;
+  showError(event.error||event.message);
+});
+
+window.addEventListener('unhandledrejection',event=>{
+  showError(event.reason);
+});
+</script>
+</body>
+</html>
